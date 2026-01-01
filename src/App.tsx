@@ -27,6 +27,7 @@ import {
 import type { TaskResult } from './types/task';
 import { API_ENDPOINTS, STAGE_MESSAGES } from './config/api';
 import { mapTaskResult } from './utils/taskMapper';
+import { getActiveDemo, FAST_TRACK_CONFIG } from './config/demoRegistry';
 
 type PageType = 'welcome' | 'home' | 'library' | 'me' | 'detail';
 type VideoSection = 'reading' | 'later' | 'recent';
@@ -203,30 +204,44 @@ function DetailPage({ onNavigate, videoId, taskResult, onUploadComplete }: {
 }) {
   const video = videoId ? videoData.find(v => v.id === videoId) : null;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isExpertMode, setIsExpertMode] = useState(false); // false = 小白, true = 深度
+  const [isExpertMode, setIsExpertMode] = useState(false); // false = simple, true = deep
 
   // 映射后端数据到前端格式
   const mappedData = useMemo(() => {
     if (taskResult) {
-      return mapTaskResult(taskResult);
+      console.log('🔍 DetailPage received taskResult:', taskResult);
+      const mapped = mapTaskResult(taskResult);
+      console.log('✅ Mapped data:', mapped);
+      return mapped;
     }
+    console.log('⚠️ No taskResult, using default data');
     return null;
   }, [taskResult]);
 
   // 根据数据源决定使用哪个数据
   const displaySegments = mappedData?.videoSegments || videoSegments;
   const displayKnowledgeCards = mappedData?.knowledgeCards || knowledgeCards;
-  const videoSrc = taskResult?.video_url || '/video.mp4';
+
+  console.log('📊 displaySegments:', displaySegments);
+
+  // 视频源优先级：taskResult.video_url > demoRegistry.videoPath
+  const activeDemo = getActiveDemo();
+  const videoSrc = taskResult?.video_url || activeDemo.videoPath;
 
   // 视频相关状态
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [activeKnowledgeCard, setActiveKnowledgeCard] = useState<KnowledgeCardData | null>(null);
   const [showKnowledgeCard, setShowKnowledgeCard] = useState(false);
+  const lastTriggeredCard = useRef<{ word: string; time: number } | null>(null);
 
   // 查找当前时间激活的知识卡片
   const findCurrentKnowledgeCard = (time: number): KnowledgeCardData | null => {
-    return displayKnowledgeCards.find(card => Math.abs(card.time - time) < 0.5) || null;
+    const card = displayKnowledgeCards.find(card => Math.abs(card.time - time) < 0.5);
+    if (card) {
+      console.log('🎯 Found knowledge card at time', time, ':', card.word);
+    }
+    return card || null;
   };
 
   // 监听视频播放时间
@@ -234,20 +249,39 @@ function DetailPage({ onNavigate, videoId, taskResult, onUploadComplete }: {
     const videoElement = videoRef.current;
     if (!videoElement) return;
 
+    console.log('🎬 Video player initialized. Knowledge cards:', displayKnowledgeCards.length);
+    console.log('📍 Card trigger times:', displayKnowledgeCards.map(c => `${c.word}@${c.time}s`));
+
     const handleTimeUpdate = () => {
       const time = videoElement.currentTime;
       setCurrentTime(time);
 
       // 检查是否需要显示知识卡片
       const card = findCurrentKnowledgeCard(time);
-      if (card && card !== activeKnowledgeCard) {
-        setActiveKnowledgeCard(card);
-        setShowKnowledgeCard(true);
 
-        // 3秒后自动隐藏
-        setTimeout(() => {
-          setShowKnowledgeCard(false);
-        }, 3000);
+      if (card) {
+        // 检查是否需要重新触发（避免在同一时间段内重复触发）
+        const shouldTrigger = !lastTriggeredCard.current ||
+                             lastTriggeredCard.current.word !== card.word ||
+                             Math.abs(lastTriggeredCard.current.time - time) > 2; // 2秒冷却时间
+
+        if (shouldTrigger) {
+          console.log('✨ Triggering knowledge card:', card.word, 'at', time);
+          setActiveKnowledgeCard(card);
+          setShowKnowledgeCard(true);
+          lastTriggeredCard.current = { word: card.word, time };
+
+          // 5秒后自动隐藏（防抖：解决段落太碎的问题）
+          setTimeout(() => {
+            setShowKnowledgeCard(false);
+          }, 5000);
+        }
+      } else {
+        // 离开所有卡片的触发区域，重置状态（允许重新触发）
+        if (lastTriggeredCard.current &&
+            !displayKnowledgeCards.some(c => Math.abs(c.time - time) < 2)) {
+          lastTriggeredCard.current = null;
+        }
       }
     };
 
@@ -332,6 +366,7 @@ function DetailPage({ onNavigate, videoId, taskResult, onUploadComplete }: {
       {isExpanded && (
         <ExpandedPanel
           segments={displaySegments}
+          knowledgeCards={displayKnowledgeCards}
           currentTime={currentTime}
           onSeekTo={handleSeekTo}
         />
@@ -474,10 +509,54 @@ function SearchBar({ onUploadComplete }: { onUploadComplete: (taskResult: TaskRe
   const [popoverOpen, setPopoverOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  /**
+   * Fast-Track 模式：模拟 SSE 进度，直接加载本地数据
+   */
+  const handleFastTrackUpload = async (file: File) => {
+    const activeDemo = getActiveDemo();
+    const stages: Array<keyof typeof FAST_TRACK_CONFIG.stageDelays> = ['slicing', 'asr', 'llm_summary', 'llm_keywords', 'finalize'];
 
+    setIsUploading(true);
+    setPopoverOpen(true);
+
+    // 模拟各阶段进度
+    for (const stage of stages) {
+      setCurrentStage(stage);
+      await new Promise(resolve => setTimeout(resolve, FAST_TRACK_CONFIG.stageDelays[stage]));
+    }
+
+    try {
+      // 加载本地预先准备的数据
+      const response = await fetch(activeDemo.dataPath);
+      if (!response.ok) {
+        throw new Error(`Failed to load demo data: ${activeDemo.dataPath}`);
+      }
+
+      const taskResult: TaskResult = await response.json();
+      console.log('🎯 Fast-Track loaded taskResult:', taskResult);
+      console.log('📦 summary.by_slice:', taskResult.summary?.by_slice);
+
+      // 注入视频 URL（从配置中读取）
+      taskResult.video_url = activeDemo.videoPath;
+
+      // 完成上传
+      setIsUploading(false);
+      setPopoverOpen(false);
+      toast.success(`${activeDemo.name} - 分析完成`);
+      console.log('✅ Calling onUploadComplete with taskResult');
+      onUploadComplete(taskResult);
+    } catch (error) {
+      console.error('Fast-Track error:', error);
+      toast.error('加载演示数据失败');
+      setIsUploading(false);
+      setPopoverOpen(false);
+    }
+  };
+
+  /**
+   * 真实上传模式（可选）- 调用后端 API
+   */
+  const handleRealUpload = async (file: File) => {
     setIsUploading(true);
     setCurrentStage('slicing');
 
@@ -543,6 +622,18 @@ function SearchBar({ onUploadComplete }: { onUploadComplete: (taskResult: TaskRe
       console.error('Upload error:', error);
       toast.error('上传失败');
       setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // 根据配置决定使用 Fast-Track 还是真实上传
+    if (FAST_TRACK_CONFIG.enabled) {
+      await handleFastTrackUpload(file);
+    } else {
+      await handleRealUpload(file);
     }
 
     // 清空 input

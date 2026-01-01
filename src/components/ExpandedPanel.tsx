@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import svgPaths from "../imports/svg-s4e0ijz15u";
-import { formatTime, type VideoSegmentData } from "../data/videoTimelineData";
+import { formatTime, type VideoSegmentData, type KnowledgeCardData } from "../data/videoTimelineData";
 
 interface ExpandedPanelProps {
   segments: VideoSegmentData[];
+  knowledgeCards: KnowledgeCardData[];
   currentTime: number;
   onSeekTo: (time: number) => void;
 }
 
 type TabType = 'segments' | 'subtitles' | 'highlights';
 
-export function ExpandedPanel({ segments, currentTime, onSeekTo }: ExpandedPanelProps) {
+export function ExpandedPanel({ segments, knowledgeCards, currentTime, onSeekTo }: ExpandedPanelProps) {
   // Tab 切换状态
   const [activeTab, setActiveTab] = useState<TabType>('segments');
   // 面板收起/展开状态
@@ -20,6 +21,14 @@ export function ExpandedPanel({ segments, currentTime, onSeekTo }: ExpandedPanel
   const isSegmentActive = (segment: VideoSegmentData) => {
     return currentTime >= segment.startTime && currentTime < segment.endTime;
   };
+
+  // 判断知识卡片是否即将触发（在触发点前后 2 秒范围内）
+  const isCardNearby = (card: KnowledgeCardData) => {
+    return Math.abs(currentTime - card.time) < 2;
+  };
+
+  // 按时间排序知识卡片
+  const sortedKnowledgeCards = [...knowledgeCards].sort((a, b) => a.time - b.time);
 
   return (
     <div className="absolute contents left-[calc(16.67%+19.67px)] top-[207px]">
@@ -143,6 +152,67 @@ export function ExpandedPanel({ segments, currentTime, onSeekTo }: ExpandedPanel
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Knowledge Cards List - 字幕帧 Tab */}
+        {activeTab === 'subtitles' && (
+          <div className="content-stretch flex flex-col gap-[4px] items-start relative shrink-0 w-full">
+            {sortedKnowledgeCards.map((card, index) => {
+              const isNearby = isCardNearby(card);
+
+              return (
+                <div
+                  key={index}
+                  className={`content-stretch flex gap-[2px] items-start relative shrink-0 w-full cursor-pointer hover:scale-[1.02] transition-transform ${isNearby ? 'opacity-100' : 'opacity-80'}`}
+                  onClick={() => onSeekTo(card.time)}
+                  title={`点击跳转到 ${formatTime(card.time)}`}
+                >
+                  {/* 红色三角形指示器 - 仅在即将触发时显示 */}
+                  {isNearby && (
+                    <div
+                      className="absolute left-[-12px] top-[4px] z-[999] w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-[#E0130B]"
+                    />
+                  )}
+
+                  {/* Active Indicator Dot */}
+                  <div className="relative shrink-0 size-[6px] mt-[2px]">
+                    <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 6 6">
+                      <circle
+                        cx="3"
+                        cy="3"
+                        fill={isNearby ? "#E0130B" : "#FFD580"}
+                        r="3"
+                      />
+                    </svg>
+                  </div>
+
+                  {/* Knowledge Card Content */}
+                  <div className="content-stretch flex flex-col items-start leading-[normal] not-italic relative shrink-0 flex-1">
+                    <div className="content-stretch flex items-center gap-[4px] relative shrink-0 w-full">
+                      <p className={`font-['Alibaba_PuHuiTi_3.0:65_Medium',sans-serif] relative shrink-0 text-[8px] ${isNearby ? 'text-[#E0130B] font-bold' : 'text-[#FFD580]'} transition-colors`}>
+                        {card.word}
+                      </p>
+                      <p className="[text-underline-position:from-font] decoration-solid font-['Alibaba_PuHuiTi_3.0:55_Regular',sans-serif] relative shrink-0 text-[6px] text-white underline">
+                        {formatTime(card.time)}
+                      </p>
+                    </div>
+                    <p className="font-['Alibaba_PuHuiTi_3.0:55_Regular',sans-serif] min-w-full relative shrink-0 text-[6px] text-white w-[min-content] line-clamp-2">
+                      {card.simple}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Highlights - 精华信息 Tab (预留) */}
+        {activeTab === 'highlights' && (
+          <div className="content-stretch flex flex-col gap-[4px] items-center justify-center relative shrink-0 w-full h-[100px]">
+            <p className="font-['Alibaba_PuHuiTi_3.0:55_Regular',sans-serif] text-[8px] text-white/50 text-center">
+              精华信息功能开发中...
+            </p>
           </div>
         )}
       </div>

@@ -19,5 +19,6 @@ export const STAGE_MESSAGES: Record<string, string> = {
   slicing: '正在切片...',
   asr: '语音识别中...',
   llm_summary: 'AI 智能总结中...',
+  llm_keywords: '提取关键词中...',
   finalize: '正在完成...',
 } as const;

@@ -6,8 +6,8 @@
 export interface KnowledgeCardData {
   time: number; // 触发时间（秒）
   word: string; // 关键词
-  simple: string; // 小白模式文案
-  deep: string; // 深度模式文案
+  simple: string; // simple 模式文案
+  deep: string; // deep 模式文案
 }
 
 export interface VideoSegmentData {
