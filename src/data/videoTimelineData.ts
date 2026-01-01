@@ -11,10 +11,12 @@ export interface KnowledgeCardData {
 }
 
 export interface VideoSegmentData {
+  id?: string; // 段落 ID（可选，用于后端数据映射）
   startTime: number; // 段落开始时间（秒）
   endTime: number; // 段落结束时间（秒）
   title: string; // 段落标题
   description: string; // 段落描述
+  content?: string; // 段落内容文本（可选，用于后端数据映射）
 }
 
 // 知识卡片触发数据（自动弹窗）
@@ -57,25 +59,31 @@ export const knowledgeCards: KnowledgeCardData[] = [
   }
 ];
 
-// 视频段落数据（侧边栏显示）
+// 视频段落数据（侧边栏显示）- 明朝历史章节
 export const videoSegments: VideoSegmentData[] = [
   {
-    startTime: 25, // 0:25
-    endTime: 60, // 1:00
-    title: "朱元璋崛起",
-    description: "从放牛娃到开国皇帝，朱元璋通过参加红巾军起义，最终推翻元朝，建立大明王朝。"
+    startTime: 0,
+    endTime: 20,
+    title: "大明群星：荣辱兴衰概览",
+    description: "永乐大帝、于谦等关键人物串联，引出全篇。"
   },
   {
-    startTime: 60, // 1:00
-    endTime: 108, // 1:48
-    title: "朱元璋成长史",
-    description: "详述朱元璋早年经历：幼年贫困、出家为僧、参军起义、征战四方、最终登基称帝的传奇人生。"
+    startTime: 21,
+    endTime: 72,
+    title: "传奇开端：朱元璋逆袭史",
+    description: "从乞丐到皇帝的开国征程，建立大明三百年基业。"
   },
   {
-    startTime: 108, // 1:48
-    endTime: 117, // 1:57
-    title: "恢复元气/减免赋税",
-    description: "朱元璋登基后采取休养生息政策，大力发展农业生产，减免赋税，让饱受战乱之苦的百姓得以喘息。"
+    startTime: 73,
+    endTime: 106,
+    title: "权力重构：废相与锦衣卫",
+    description: "胡惟庸案爆发，废除丞相制度，建立特务机构。"
+  },
+  {
+    startTime: 107,
+    endTime: 129,
+    title: "洪武之治：基业初定",
+    description: "整肃吏治、恢复民生，开启大明初期欣欣向荣之治。"
   }
 ];
 

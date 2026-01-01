@@ -2353,3 +2353,13 @@ html {
   inherits: false;
   initial-value: 1;
 }
+
+/* 隐藏滚动条 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
